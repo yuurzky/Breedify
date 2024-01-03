@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:googleai_dart/googleai_dart.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:image/image.dart' as img;
 import 'dart:io';
 
 class IdentifyChat extends StatefulWidget {
@@ -16,16 +17,15 @@ class IdentifyChatState extends State<IdentifyChat> {
   final TextEditingController _textController = TextEditingController();
   final List<ChatMessage> _messages = <ChatMessage>[];
   File? _selectedImage;
-  final client = GoogleAIClient(apiKey: dotenv.env['apiKey']);
+  final client = GoogleAIClient(apiKey: 'AIzaSyAyS5kd3SdJwAAeC6W4kd6nAbFpAsviHHE');
 
   @override
   void initState() {
     super.initState();
-    // Add an initial message from the bot
     _addBotMessage("Hi there! How can I help you today?");
   }
 
-  void _handleSubmitted(String text) async{
+  Future<void> _handleSubmitted(String text) async {
     if (text.trim().isNotEmpty && _selectedImage != null) {
       _textController.clear();
       ChatMessage message = ChatMessage(text: text, isUser: true, image: _selectedImage);
@@ -33,29 +33,44 @@ class IdentifyChatState extends State<IdentifyChat> {
         _selectedImage = null;
       });
       _addUserMessage(message);
+      final resizedImage = await _resizeImage(message.image!, maxSize: 4 * 1024 * 1024);
       final res = await client.generateContent(
         modelId: 'gemini-pro-vision',
-        request: GenerateContentRequest(
-          contents: [
-            Content(
-              parts: [
-                Part(text: message.text),
-                Part(
-                  inlineData: Blob(
-                    mimeType: 'image/png',
-                    data: base64.encode(
-                      await message.image!.readAsBytes(),
-                    ),
-                  ),
+        request: GenerateContentRequest(contents: [
+          Content(parts: [
+            const Part(text: 'Explain me about breed of cat and its features.'),
+            Part(text: message.text),
+            Part(
+              inlineData: Blob(
+                mimeType: 'image/png',
+                data: base64.encode(
+                  resizedImage.readAsBytesSync(),
                 ),
-              ]
-            )
-          ]
-        ),
+              ),
+            ),
+          ])
+        ]),
       );
       final botResponse = res.candidates?.first.content?.parts?.first.text ?? "I'm sorry, I couldn't understand that.";
       _addBotMessage(botResponse);
     }
+  }
+
+  Future<File> _resizeImage(File imageFile, {required int maxSize}) async {
+    final imageBytes = await imageFile.readAsBytes();
+    final image = img.decodeImage(Uint8List.fromList(imageBytes));
+    final resizedImage = img.copyResize(image!, width: 800);
+
+    final resizedBytes = img.encodePng(resizedImage);
+
+    if (resizedBytes.length > maxSize) {
+      throw Exception('Resized image exceeds the maximum file size of 4MB.');
+    }
+
+    final resizedImageFile = File('${imageFile.parent.path}/resized_${imageFile.uri.pathSegments.last}');
+    await resizedImageFile.writeAsBytes(resizedBytes);
+
+    return resizedImageFile;
   }
 
   void _addUserMessage(ChatMessage message) {
@@ -102,6 +117,9 @@ class IdentifyChatState extends State<IdentifyChat> {
         Container(
           color: const Color(0xFF2F1B25),
           padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+          // decoration: const BoxDecoration(
+          //   borderRadius: BorderRadius.only(topLeft: Radius.circular(10), topRight: Radius.circular(10)),
+          // ),
           child: Row(
             children: <Widget>[
               Container(
@@ -254,22 +272,29 @@ class ChatMessage extends StatelessWidget {
               const SizedBox(height: 6), // Added space between name and message
               // Display the image if available
               if (image != null)
-                Container(
-                  height: 100,
-                  width: 100,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10.0),
-                    image: DecorationImage(
-                      image: FileImage(image!),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                )
+                Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0), // Adjust the top padding as needed
+                    child: InkWell(
+                      onTap: () {
+                        _showImagePopup(context, image!);
+                      },
+                      child: Container(
+                        height: 100,
+                        width: 100,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10.0),
+                          image: DecorationImage(
+                            image: FileImage(image!),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ))
               else // Display nothing if no image is available
                 Container(),
               Container(
                 constraints: const BoxConstraints(
-                  maxWidth: 200.0,
+                  maxWidth: 240.0,
                 ),
                 decoration: BoxDecoration(
                   color: isUser ? Colors.grey[100] : Colors.grey[100],
@@ -299,6 +324,44 @@ class ChatMessage extends StatelessWidget {
               : Container(),
         ],
       ),
+    );
+  }
+
+  void _showImagePopup(BuildContext context, File image) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFFFFFFFF),
+          content: Container(
+            width: 300.0,
+            height: 300.0,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10.0),
+              image: DecorationImage(
+                image: FileImage(image),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'Close',
+                style: TextStyle(
+                  color: Colors.black,
+                  fontSize: 16,
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

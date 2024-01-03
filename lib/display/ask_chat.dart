@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:langchain/langchain.dart';
-import 'package:langchain_google/langchain_google.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:googleai_dart/googleai_dart.dart';
 
 class AskChat extends StatefulWidget {
   const AskChat({Key? key}) : super(key: key);
@@ -13,7 +11,7 @@ class AskChat extends StatefulWidget {
 class AskChatState extends State<AskChat> {
   final TextEditingController _textController = TextEditingController();
   final List<ChatMessage> _messages = <ChatMessage>[];
-  final _chatModel = ChatGoogleGenerativeAI(apiKey: dotenv.env['apiKey']);
+  final _chatModel = GoogleAIClient(apiKey: 'AIzaSyAyS5kd3SdJwAAeC6W4kd6nAbFpAsviHHE');
 
   @override
   void initState() {
@@ -28,9 +26,16 @@ class AskChatState extends State<AskChat> {
       isUser: true,
     );
     _addUserMessage(message);
-    final prompt = PromptValue.string(message.text);
-    final result = await _chatModel.invoke(prompt);
-    final botResponse = result.generations.first.output.content;
+    final res = await _chatModel.generateContent(
+      modelId: 'gemini-pro',
+      request: GenerateContentRequest(contents: [
+        Content(parts: [
+          const Part(text: 'Explain me everything about cats that i tell you, respond only single conversation line 40 words minimum and be expressive like you talking with cat lovers!'),
+          Part(text: message.text),
+        ])
+      ]),
+    );
+    final botResponse = res.candidates?.first.content?.parts?.first.text ?? "I'm sorry, I couldn't understand that.";
     _addBotMessage(botResponse);
   }
 

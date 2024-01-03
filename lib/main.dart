@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:breedify/display/splashScreen.dart';
-import 'package:breedify/display/selectMenu.dart';
-import 'package:breedify/display/identifyChat.dart';
-import 'package:breedify/display/askChat.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/services.dart';
+import 'package:breedify/display/splash_screen.dart';
+import 'package:breedify/display/select_menu.dart';
+import 'package:breedify/display/identify_chat.dart';
+import 'package:breedify/display/ask_chat.dart';
 
 Future<void> main() async {
-  await dotenv.load(fileName: ".env");
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
   runApp(const MyApp());
 }
 
@@ -39,7 +41,6 @@ class MyApp extends StatelessWidget {
           '/select': (_) => const SelectMenu(),
           '/identify': (_) => const IdentifyChat(),
           '/ask': (_) => const AskChat(),
-          // '/menu': (_) => const MainMenu(),
         });
   }
 }
